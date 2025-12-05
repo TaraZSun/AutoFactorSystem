@@ -5,3 +5,4 @@ matplotlib
 scipy
 tqdm
 python-dotenv
+pydantic>1.10

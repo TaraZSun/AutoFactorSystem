@@ -1,12 +1,11 @@
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def calculate_basic_factors(data:pd.DataFrame)->pd.DataFrame:
+def calculate_returns_factors(data:pd.DataFrame)->pd.DataFrame:
     """Calculate basic financial factors for stock data."""
     # daily return 
     data["return_1day"] = data.groupby('ticker')['adj_close'].pct_change()
@@ -63,7 +62,7 @@ def calculate_momentum_factors(data:pd.DataFrame)->pd.DataFrame:
 def calculate_all_factors(input_file:Path, output_file:Path)->pd.DataFrame:
     """Calculate all basic financial factors for stock data."""
     data = pd.read_csv(input_file, parse_dates=['date'])
-    data = calculate_basic_factors(data)
+    data = calculate_returns_factors(data)
     data = calculate_moving_averages(data)
     data = calculate_volatility(data)
     data = calculate_volume_factors(data)
