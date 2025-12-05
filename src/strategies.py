@@ -2,27 +2,85 @@
 import pandas as pd
 import numpy as np
 import logging
+from consts import MOMENTUM_FACTORS, MIN_VALID_FACTORS, LONG_N, SHORT_N, TOP_N, MOMENTUM_WEIGHTS
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def momentum_strategy(data:pd.DataFrame, factors:list, top_n:int=10)->pd.DataFrame:
-    """1️⃣ 横截面动量策略（Trend / Momentum）
-    思想：过去一段时间涨得多的，未来还会继续强（趋势跟随）。
-    用到的因子列：return_20day, return_60day, return_120day, return_250day
-    简单规则示例（等权多头）：
+def momentum_strategy(data:pd.DataFrame,
+                    long_short:bool,
+                    top_n:int=TOP_N,
+                    weights:dict[str,float]=MOMENTUM_WEIGHTS,
+                    min_valid_factors:int=MIN_VALID_FACTORS,
+                    long_n:int=LONG_N,
+                    short_n:int=SHORT_N,
+                    factors:list[str]=MOMENTUM_FACTORS,)->pd.DataFrame:
+    """1️⃣ 横截面多周期动量策略（Trend / Momentum, Multi-horizon）
+    long_short=False:只做多，选topn， long_short=True:做多做空
+    思想：
+        - 对于每个交易日，在所有股票之间比较“动量强弱”，选出动量最强的top5股票做多， bottom5做空（美股）。
+        - 动量可以用多周期的收益率来衡量，比如 20 天、60 天、120 天、250 天收益率的平均值。
+        - 为了避免未来函数，信号整体向后shift 一天，表示“昨天收盘后决定今天的持仓”。
+    
     对每个交易日：按 return_60day 从大到小排序所有股票，选前 N（比如 10 或 20）只股票，signal = 1，
     其他股票 signal = 0，第二天按这个持仓计算组合收益"""
     data = data.copy()
-    data['momentum_score'] = data[factors].mean(axis=1)
+    # 计算每个因子的横截面 z-score
+    for factor in factors:
+        data[factor + '_zscore'] = data.groupby('date')[factor].transform(
+            lambda x: (x - x.mean()) / x.std()+ 1e-9
+        )
+    # 每行有效因子数量
+    data['valid_factor_count'] = data[[f + '_zscore' for f in factors]].notnull().sum(axis=1)
+    # 只保留有效因子数量 >= min_valid_factors 的行
+    data = data[data['valid_factor_count'] >= min_valid_factors]
+    # 计算加权动量得分
+    data["momentum_score"] = 0.0
+    for col in factors:
+        zcol = col + '_zscore'
+        data["momentum_score"] += weights[col] * data[zcol].fillna(0)
     
-    def assign_momentum_signal(group):
-        group = group.sort_values(by='momentum_score', ascending=False)
-        n = min(top_n, len(group))
+    # 有效因子太少的行，score 设为 NaN（当天不参与排序）
+    data.loc[data["valid_factor_count"] < min_valid_factors, "momentum_score"] = np.nan
+
+    # 根据 long_short 参数决定做多做空还是只做多
+    if long_n is None:
+        long_n = top_n
+    if short_n is None:
+        short_n = top_n
+    # 按天横截面排序，生成多空信号
+    def assign_momentum_signal(group:pd.DataFrame)->pd.DataFrame:
+        valid = group.dropna(subset=['momentum_score']).copy()
+        if valid.empty:
+            group['signal'] = 0.0
+            return group
+        
+        valid = valid.sort_values(by='momentum_score', ascending=False)
         group['signal'] = 0.0
-        group.iloc[:n, group.columns.get_loc('signal')] = 1
+
+        if long_short:
+            # 多头: 选 top N 做多
+            n_long = min(long_n, len(valid))
+            long_idxs = valid.index[:n_long]
+
+            # 空头: 选 bottom N 做空
+            remaining = valid.index[n_long:]
+            n_short = min(short_n, len(remaining))
+            short_idxs = remaining[-n_short:] if n_short > 0 else []
+
+            group.loc[long_idxs, 'signal'] = 1.0
+            group.loc[short_idxs, 'signal'] = -1.0
+        else:
+            # 只做多: 选 top N 做多
+            n_long = min(top_n, len(valid))
+            long_idxs = valid.index[:n_long]
+            group.loc[long_idxs, 'signal'] = 1.0
         return group
-    data = data.groupby("date", group_keys=False).apply(assign_momentum_signal)
+    data = data.groupby('date', group_keys=False
+                        ).apply(assign_momentum_signal)
+    
+    # 信号向后移一日，避免未来函数
     data["signal"] = data.groupby("ticker")["signal"].shift(1).fillna(0)
     return data
 

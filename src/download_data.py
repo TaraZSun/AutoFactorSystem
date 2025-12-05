@@ -1,8 +1,7 @@
 """Script to download historical stock data for specified tickers"""
 import yfinance
 import logging
-from dotenv import load_dotenv
-import os
+from consts import TICKERS, START_DATE, END_DATE, RAW_DATA_DIR, PROCESSED_DATA_DIR
 import pandas as pd
 from pathlib import Path
 
@@ -10,14 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-load_dotenv()
 
-# Configuration
-START_DATE = os.getenv('START_DATE')
-END_DATE = os.getenv('END_DATE')
-TICKERS = os.getenv('TICKERS').split(',')
-RAW_DATA_DIR = Path("data/raw")
-PROCESSED_DATA_DIR = Path("data/processed")
 
 def download_stock_data(ticker:str, start_date:str, end_date:str)->pd.DataFrame:
     """Download historical stock data for a given ticker and date range."""

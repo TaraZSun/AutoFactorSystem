@@ -5,17 +5,15 @@ from pathlib import Path
 import logging
 import strategies
 import models
-from dotenv import load_dotenv
+
 from typing import Callable
-import os
+from consts import INITIAL_CAPITAL, INPUT_FILE, OUTPUT_DIR
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
 SigFuncType = Callable[[pd.DataFrame], pd.DataFrame]
 
-load_dotenv()
 
-INITIAL_CAPITAL = os.getenv('INITIAL_CAPITAL')
 
 
 def calculate_strategy_returns(data:pd.DataFrame, initial_capital: float=float(INITIAL_CAPITAL))->pd.DataFrame:
@@ -86,8 +84,7 @@ def generate_backtest_signals(data:pd.DataFrame,
     return models.StrategyRunResult(strategy_config=config, backtest_result=backtest_metrics)
 
 def main()->None:
-    INPUT_FILE = Path("data/factors/stocks_with_factors.csv")
-    OUTPUT_DIR = Path("results/backtest")
+    
     data = pd.read_csv(INPUT_FILE, parse_dates=['date'])
     strategy_map = [
         ("Momentum Strategy", strategies.momentum_strategy, {"factors": ["return_20day", "return_60day", "return_120day", "return_250day"], "top_n": 10}),
