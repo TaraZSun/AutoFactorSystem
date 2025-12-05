@@ -1,0 +1,31 @@
+# ======================================
+# Python cache and temporary files
+# ======================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.pickle
+*.ipynb_checkpoints/
+
+# ======================================
+# Virtual environments
+# ======================================
+venv/
+.env/
+.env*/
+*.env
+
+
+# ======================================
+# System / Editor files
+# ======================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
+
+data/
+results/
